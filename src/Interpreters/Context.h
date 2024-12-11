@@ -909,6 +909,17 @@ public:
                                   const std::optional<FormatSettings> & format_settings = std::nullopt, std::optional<size_t> max_parsing_threads = std::nullopt) const;
 
     OutputFormatPtr getOutputFormat(const String & name, WriteBuffer & buf, const Block & sample) const;
+
+    // move to somewhere else
+    using InternalFormatterCreator = std::function<OutputFormatPtr(const String & buffer_filepath)>;
+    OutputFormatPtr getOutputFormatWithPartition(
+        const InternalFormatterCreator & format_creator,
+        WriteBuffer & fake_buffer,
+        const Block & sample,
+        const String & pattern,
+        const ASTPtr & partition_by
+    ) const;
+
     OutputFormatPtr getOutputFormatParallelIfPossible(const String & name, WriteBuffer & buf, const Block & sample) const;
 
     InterserverIOHandler & getInterserverIOHandler();

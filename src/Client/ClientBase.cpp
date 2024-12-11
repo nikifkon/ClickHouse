@@ -64,6 +64,7 @@
 #include <IO/WriteBufferFromFileDescriptor.h>
 #include <IO/CompressionMethod.h>
 #include <IO/ForkWriteBuffer.h>
+#include <IO/DynamicForkWriteBuffer.h>
 
 #include <Access/AccessControl.h>
 #include <Storages/ColumnsDescription.h>
@@ -559,6 +560,13 @@ try
 
         select_into_file = false;
         select_into_file_and_stdout = false;
+        bool select_into_file_partition_by = false;
+
+        using WriteBufferByPath = std::function<std::unique_ptr<WriteBuffer>(const String & buffer_filepath)>;
+        WriteBufferByPath outfile_buf_factory;
+        String pattern;
+        ASTPtr partition_by;
+
         /// The query can specify output format or output file.
         if (const auto * query_with_output = dynamic_cast<const ASTQueryWithOutput *>(parsed_query.get()))
         {
@@ -587,27 +595,41 @@ try
                     compression_level_node.value.tryGet<UInt64>(compression_level);
                 }
 
-                auto flags = O_WRONLY | O_EXCL;
+                outfile_buf_factory = [=, this](const String& out_filepath) {
+                    auto flags = O_WRONLY | O_EXCL;
+                    auto file_exists = fs::exists(out_filepath);
+                    if (file_exists && query_with_output->is_outfile_append)
+                        flags |= O_APPEND;
+                    else if (file_exists && query_with_output->is_outfile_truncate)
+                        flags |= O_TRUNC;
+                    else
+                        flags |= O_CREAT;
 
-                auto file_exists = fs::exists(out_file);
-                if (file_exists && query_with_output->is_outfile_append)
-                    flags |= O_APPEND;
-                else if (file_exists && query_with_output->is_outfile_truncate)
-                    flags |= O_TRUNC;
-                else
-                    flags |= O_CREAT;
+                    auto res = wrapWriteBufferWithCompressionMethod(
+                        std::make_unique<WriteBufferFromFile>(out_filepath, DBMS_DEFAULT_BUFFER_SIZE, flags),
+                        compression_method,
+                        static_cast<int>(compression_level)
+                    );
 
-                out_file_buf = wrapWriteBufferWithCompressionMethod(
-                    std::make_unique<WriteBufferFromFile>(out_file, DBMS_DEFAULT_BUFFER_SIZE, flags),
-                    compression_method,
-                    static_cast<int>(compression_level)
-                );
-
+                    if (select_into_file_and_stdout)
+                    {
+                        res = std::make_unique<ForkWriteBuffer>(std::vector<WriteBufferPtr>{std::move(res),
+                                std::make_shared<WriteBufferFromFileDescriptor>(STDOUT_FILENO)});
+                    }
+                    return res;
+                };
                 if (query_with_output->is_into_outfile_with_stdout)
                 {
                     select_into_file_and_stdout = true;
-                    out_file_buf = std::make_unique<ForkWriteBuffer>(std::vector<WriteBufferPtr>{std::move(out_file_buf),
-                            std::make_shared<WriteBufferFromFileDescriptor>(STDOUT_FILENO)});
+                }
+
+                if (query_with_output->partition_by) {
+                    out_file_buf = std::make_unique<DynamicForkWriteBuffer>();
+                    select_into_file_partition_by = true;
+                    pattern = out_file;
+                    partition_by = query_with_output->partition_by;
+                } else {
+                    out_file_buf = outfile_buf_factory(out_file);
                 }
 
                 // We are writing to file, so default format is the same as in non-interactive mode.
@@ -632,23 +654,33 @@ try
         if (has_vertical_output_suffix)
             current_format = "Vertical";
 
-        bool logs_into_stdout = server_logs_file == "-";
-        bool extras_into_stdout = need_render_progress || logs_into_stdout;
-        bool select_only_into_file = select_into_file && !select_into_file_and_stdout;
+        if (select_into_file_partition_by) {
+            FormatFactory::InternalFormatterCreator creator = [=, this](const String & out_filepath) {
+                auto write_buffer = outfile_buf_factory(out_filepath);
+                auto& write_buffer_ref = *write_buffer;
+                dynamic_cast<DynamicForkWriteBuffer*>(out_file_buf.get())->addWriteBuffer(std::move(write_buffer));
+                // TODO ifs
+                return client_context->getOutputFormat(current_format, write_buffer_ref, block);
+            };
+            output_format = client_context->getOutputFormatWithPartition(creator, *out_file_buf, block, pattern, partition_by);
+        } else {
+            bool logs_into_stdout = server_logs_file == "-";
+            bool extras_into_stdout = need_render_progress || logs_into_stdout;
+            bool select_only_into_file = select_into_file && !select_into_file_and_stdout;
 
-        if (!out_file_buf && default_output_compression_method != CompressionMethod::None)
-            out_file_buf = wrapWriteBufferWithCompressionMethod(out_buf, default_output_compression_method, 3, 0);
+            if (!out_file_buf && default_output_compression_method != CompressionMethod::None)
+                out_file_buf = wrapWriteBufferWithCompressionMethod(out_buf, default_output_compression_method, 3, 0);
 
-        /// It is not clear how to write progress and logs
-        /// intermixed with data with parallel formatting.
-        /// It may increase code complexity significantly.
-        if (!extras_into_stdout || select_only_into_file)
-            output_format = client_context->getOutputFormatParallelIfPossible(
-                current_format, out_file_buf ? *out_file_buf : *out_buf, block);
-        else
-            output_format = client_context->getOutputFormat(
-                current_format, out_file_buf ? *out_file_buf : *out_buf, block);
-
+            /// It is not clear how to write progress and logs
+            /// intermixed with data with parallel formatting.
+            /// It may increase code complexity significantly.
+            if (!extras_into_stdout || select_only_into_file)
+                output_format = client_context->getOutputFormatParallelIfPossible(
+                    current_format, out_file_buf ? *out_file_buf : *out_buf, block);
+            else
+                output_format = client_context->getOutputFormat(
+                    current_format, out_file_buf ? *out_file_buf : *out_buf, block);
+        }
         output_format->setAutoFlush();
     }
 }
@@ -1067,7 +1099,7 @@ void ClientBase::processOrdinaryQuery(const String & query_to_execute, ASTPtr pa
                         range.second);
             }
 
-            if (fs::exists(out_file))
+            if (!query_with_output->partition_by && fs::exists(out_file))
             {
                 if (!query_with_output->is_outfile_append && !query_with_output->is_outfile_truncate)
                 {

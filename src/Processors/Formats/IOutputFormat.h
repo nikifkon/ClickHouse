@@ -112,6 +112,7 @@ public:
     }
 
 protected:
+    friend class PartitionOutputFormat;
     friend class ParallelFormattingOutputFormat;
 
 

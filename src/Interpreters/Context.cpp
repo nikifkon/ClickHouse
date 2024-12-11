@@ -4887,6 +4887,16 @@ OutputFormatPtr Context::getOutputFormatParallelIfPossible(const String & name, 
     return FormatFactory::instance().getOutputFormatParallelIfPossible(name, buf, sample, shared_from_this());
 }
 
+OutputFormatPtr Context::getOutputFormatWithPartition(
+    const InternalFormatterCreator & format_creator,
+    WriteBuffer & fake_buffer,
+    const Block & sample,
+    const String & pattern,
+    const ASTPtr & partition_by
+) const {
+    return FormatFactory::instance().getOutputFormatWithPartition(format_creator, fake_buffer, sample, pattern, partition_by, shared_from_this());
+}
+
 
 double Context::getUptimeSeconds() const
 {

@@ -13,6 +13,11 @@ void ASTQueryWithOutput::cloneOutputOptions(ASTQueryWithOutput & cloned) const
         cloned.out_file = out_file->clone();
         cloned.children.push_back(cloned.out_file);
     }
+    if (partition_by)
+    {
+        cloned.partition_by = partition_by->clone();
+        cloned.children.push_back(cloned.partition_by);
+    }
     if (format)
     {
         cloned.format = format->clone();
@@ -53,7 +58,14 @@ void ASTQueryWithOutput::formatImpl(const FormatSettings & s, FormatState & stat
             s.ostr << " TRUNCATE";
         if (is_into_outfile_with_stdout)
             s.ostr << " AND STDOUT";
-        s.ostr << (s.hilite ? hilite_none : "");
+
+        if (partition_by) {
+            s.ostr << " PARTITION BY ";
+            s.ostr << (s.hilite ? hilite_none : "");
+            partition_by->formatImpl(s, state, frame);
+        } else {
+            s.ostr << (s.hilite ? hilite_none : "");
+        }
     }
 
     if (format)
@@ -86,6 +98,7 @@ bool ASTQueryWithOutput::resetOutputASTIfExist(IAST & ast)
         };
 
         remove_if_exists(ast_with_output->out_file);
+        remove_if_exists(ast_with_output->partition_by);
         remove_if_exists(ast_with_output->format);
         remove_if_exists(ast_with_output->settings_ast);
         remove_if_exists(ast_with_output->compression);

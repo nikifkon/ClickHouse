@@ -563,6 +563,18 @@ OutputFormatPtr FormatFactory::getOutputFormatParallelIfPossible(
 }
 
 
+
+OutputFormatPtr FormatFactory::getOutputFormatWithPartition(
+    const InternalFormatterCreator & format_creator,
+    WriteBuffer & fake_buffer,
+    const Block & sample,
+    const String & pattern,
+    const ASTPtr & partition_by,
+    const ContextPtr & context
+) const {
+    return std::make_shared<PartitionOutputFormat>(format_creator, fake_buffer, sample, pattern, partition_by, context);
+}
+
 OutputFormatPtr FormatFactory::getOutputFormat(
     const String & name,
     WriteBuffer & buf,

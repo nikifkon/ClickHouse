@@ -1,6 +1,8 @@
 #pragma once
 
+#include <Parsers/IAST_fwd.h>
 #include <Common/Allocator.h>
+#include "Processors/Formats/PartitionOutputFormat.h"
 #include <Columns/IColumn.h>
 #include <Formats/FormatSettings.h>
 #include <Interpreters/Context_fwd.h>
@@ -46,6 +48,7 @@ using ExternalSchemaReaderPtr = std::shared_ptr<IExternalSchemaReader>;
 using InputFormatPtr = std::shared_ptr<IInputFormat>;
 using OutputFormatPtr = std::shared_ptr<IOutputFormat>;
 using RowOutputFormatPtr = std::shared_ptr<IRowOutputFormat>;
+class PartitionOutputFormat;
 
 template <typename Allocator>
 struct Memory;
@@ -181,6 +184,19 @@ public:
         const Block & sample,
         const ContextPtr & context,
         const std::optional<FormatSettings> & format_settings = std::nullopt) const;
+
+    // TODO maybe need generalize somehow
+    using InternalFormatterCreator = std::function<OutputFormatPtr(const String & buffer_filepath)>;
+
+    OutputFormatPtr getOutputFormatWithPartition(
+        const InternalFormatterCreator & format_creator,
+        WriteBuffer & fake_buffer,
+        const Block & sample,
+        const String & pattern,
+        const ASTPtr & partition_by,
+        const ContextPtr & context
+        // TODO who use settings?
+    ) const;
 
     OutputFormatPtr getOutputFormat(
         const String & name,

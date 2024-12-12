@@ -30,6 +30,7 @@ ${CLICKHOUSE_CLIENT} --query "CREATE TABLE \`${CLICKHOUSE_TEST_NAME}\` (a String
 ${CLICKHOUSE_CLIENT} --query "INSERT INTO \`${CLICKHOUSE_TEST_NAME}\` VALUES ('x', 1, 1), ('x', 2, 2), ('x', 3, 3), ('y', 1, 4), ('y', 2, 5), ('y', 3, 6);"
 
 perform "simple__identifier" "SELECT * FROM \`${CLICKHOUSE_TEST_NAME}\` INTO OUTFILE '${CLICKHOUSE_TMP}/{a}' PARTITION BY a;"
+perform "simple__partition_id" "SELECT * FROM \`${CLICKHOUSE_TEST_NAME}\` INTO OUTFILE '${CLICKHOUSE_TMP}/{_partition_id}' PARTITION BY a;"
 
 perform "simple__expr_with_alias" "SELECT * FROM \`${CLICKHOUSE_TEST_NAME}\` INTO OUTFILE '${CLICKHOUSE_TMP}/{mod}' PARTITION BY b % 2 as mod;"
 perform "simple__expr_without_alias" "SELECT * FROM \`${CLICKHOUSE_TEST_NAME}\` INTO OUTFILE '${CLICKHOUSE_TMP}/{modulo(b, 2)}' PARTITION BY modulo(b, 2);"
@@ -64,4 +65,6 @@ ${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outf
 ${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outfile_{}' PARTITION BY a;" 2>&1 | grep -Fc "Unexpected column name"
 
 ${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outfile_{b}' PARTITION BY a;" 2>&1 | grep -Fc "Unexpected column name"
+
+${CLICKHOUSE_CLIENT} --query "SELECT 1 as a, 2 as b INTO OUTFILE '${CLICKHOUSE_TMP}/outfile_{_partition_id}_{b}' PARTITION BY a, b;" 2>&1 | grep -Fc "Can only use {_partition_id} with one key"
 

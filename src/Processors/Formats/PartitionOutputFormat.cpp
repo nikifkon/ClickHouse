@@ -15,6 +15,8 @@ namespace ErrorCodes
 
 namespace DB {
 
+const std::string PARTITION_ID_WILDCARD = "_partition_id";
+
 String formatPattern(const String & pattern, const PartitionOutputFormat::Key & key, const std::unordered_map<String, int>& key_name_to_index) {
     String res;
     std::vector<bool> used(key.size());
@@ -67,12 +69,20 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
                 continue;
             }
             found = true;
+            int key_index;
             auto it = key_name_to_index.find(name);
             if (it == key_name_to_index.end()) {
-                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected column name in out_file pattern: {}", name);
+                if (name != PARTITION_ID_WILDCARD)
+                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected column name in out_file pattern: {}", name);
+                if (key.size() != 1)
+                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected column name in out_file pattern: {}. Can only use {{_partition_id}} with one key", name);
+                key_index = 0;
+            } else {
+                key_index = it->second;
             }
-            used[it->second] = true;
-            res.append(key[it->second].toView());
+
+            used[key_index] = true;
+            res.append(key[key_index].toView());
             i = j;
             name.clear();
             break;

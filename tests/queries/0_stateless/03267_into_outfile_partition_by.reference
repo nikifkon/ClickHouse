@@ -7,6 +7,15 @@ file: y
 y	1	4
 y	2	5
 y	3	6
+performing test: simple__partition_id
+file: x
+x	1	1
+x	2	2
+x	3	3
+file: y
+y	1	4
+y	2	5
+y	3	6
 performing test: simple__expr_with_alias
 file: 0
 x	2	2
@@ -78,6 +87,7 @@ file: 42
 perform file exist test
 1
 perform wrong template test
+1
 1
 1
 1

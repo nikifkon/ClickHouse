@@ -101,12 +101,23 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
     return res;
 }
 
+const ASTs & getChildernsInPartitionBy(const ASTPtr & expr_list) {
+    if (expr_list->children.size() != 1) {
+        return expr_list->children;
+    }
+    const auto * func = expr_list->children.front()->as<ASTFunction>();
+    if (!func || func->name != "tuple") {
+        return expr_list->children;
+    }
+    return func->arguments->children;
+}
+
 void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_by)
 {
     std::unordered_map<String, int> partition_key_name_to_index;
     PartitionOutputFormat::Key key;
     int i = 0;
-    for (const ASTPtr & expr : partition_by->children)
+    for (const ASTPtr & expr : getChildernsInPartitionBy(partition_by))
     {
         partition_key_name_to_index.emplace(expr->getAliasOrColumnName(), i++);
         key.push_back("");
@@ -114,7 +125,6 @@ void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_b
 
     formatPattern(pattern, key, partition_key_name_to_index);
 }
-
 
 PartitionOutputFormat::PartitionOutputFormat(
     const InternalFormatterCreator & internal_formatter_creator_,
@@ -126,7 +136,7 @@ PartitionOutputFormat::PartitionOutputFormat(
     : IOutputFormat(header_, fake_buffer), header(header_), pattern(pattern_), internal_formatter_creator(internal_formatter_creator_)
 {
     int i = 0;
-    for (const ASTPtr & expr : partition_by->children)
+    for (const ASTPtr & expr : getChildernsInPartitionBy(partition_by))
     {
         partition_key_name_to_index.emplace(expr->getAliasOrColumnName(), i++);
 

@@ -59,9 +59,9 @@ rm "${CLICKHOUSE_TMP}"/*
 
 echo "perform wrong template test"
 
-${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outfile' PARTITION BY a;" 2>&1 | grep -Fc "must use all keys"
+${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outfile' PARTITION BY a;" 2>&1 | grep -Fc "Missed columns"
 
-${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outfile_{}' PARTITION BY a;" 2>&1 | grep -Fc "unexpected column name"
+${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outfile_{}' PARTITION BY a;" 2>&1 | grep -Fc "Unexpected column name"
 
-${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outfile_{b}' PARTITION BY a;" 2>&1 | grep -Fc "unexpected column name"
+${CLICKHOUSE_CLIENT} --query "SELECT 1 as a INTO OUTFILE '${CLICKHOUSE_TMP}/outfile_{b}' PARTITION BY a;" 2>&1 | grep -Fc "Unexpected column name"
 

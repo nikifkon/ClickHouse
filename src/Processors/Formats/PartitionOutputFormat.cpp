@@ -1,5 +1,16 @@
 #include "PartitionOutputFormat.h"
 #include "Common/ArenaUtils.h"
+#include <Common/Exception.h>
+
+#include <boost/algorithm/string/join.hpp>
+#include <ranges>
+#include <boost/range/adaptor/map.hpp>
+
+
+namespace ErrorCodes
+{
+    extern const int BAD_ARGUMENTS;
+}
 
 namespace DB {
 
@@ -7,8 +18,6 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
     String res;
     std::vector<bool> used(key.size());
     int n = static_cast<int>(pattern.size());
-
-    // TODO exception: unexpected }
 
     for (int i = 0; i < n; ++i) {
         char x = pattern[i];
@@ -24,6 +33,9 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
                 res.push_back('}');
                 continue;
             }
+        }
+        if (x == '}') {
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Not escaped '}}' in out_file pattern at pos {}. Escape it using backslash '\'", i);
         }
         if (x != '{') {
             res.push_back(x);
@@ -46,6 +58,9 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
                     continue;
                 }
             }
+            if (x == '{') {
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Not escaped '{{' inside out_file pattern at pos {}. Escape it using backslash '\'", j);
+            }
             if (x != '}') {
                 name.push_back(x);
                 continue;
@@ -53,7 +68,7 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
             found = true;
             auto it = key_name_to_index.find(name);
             if (it == key_name_to_index.end()) {
-                throw std::runtime_error("unexpected column name");
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected column name in out_file pattern: {}", name);
             }
             used[it->second] = true;
             res.append(key[it->second].toView());
@@ -62,12 +77,15 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
             break;
         }
         if (!found) {
-            throw std::runtime_error("unmatched {");
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "No matching '}}' for '{{' in out_file pattern at pos {}", i);
         }
     }
     if (!std::all_of(begin(used), end(used), std::identity{})) {
-
-        throw std::runtime_error("must use all keys");
+        auto missed_columns_view = key_name_to_index
+            | std::views::filter([&](const auto & pair) { return !used[pair.second];})
+            | std::views::transform([](const auto & pair) { return pair.first; });
+        std::vector<std::string> missed_columns(missed_columns_view.begin(), missed_columns_view.end());
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Missed columns in out_file pattern: {}. Must use all of them", boost::algorithm::join(missed_columns, ", "));
     }
     return res;
 }

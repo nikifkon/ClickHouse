@@ -27,6 +27,8 @@
 namespace DB
 {
 
+void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_by);
+
 using OutputFormatPtr = std::shared_ptr<IOutputFormat>;
 
 class PartitionOutputFormat : public IOutputFormat {

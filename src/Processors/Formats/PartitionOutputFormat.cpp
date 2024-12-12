@@ -4,6 +4,7 @@
 
 #include <boost/algorithm/string/join.hpp>
 #include <ranges>
+#include <unordered_map>
 #include <boost/range/adaptor/map.hpp>
 
 
@@ -88,6 +89,20 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Missed columns in out_file pattern: {}. Must use all of them", boost::algorithm::join(missed_columns, ", "));
     }
     return res;
+}
+
+void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_by)
+{
+    std::unordered_map<String, int> partition_key_name_to_index;
+    PartitionOutputFormat::Key key;
+    int i = 0;
+    for (const ASTPtr & expr : partition_by->children)
+    {
+        partition_key_name_to_index.emplace(expr->getAliasOrColumnName(), i++);
+        key.push_back("");
+    }
+
+    formatPattern(pattern, key, partition_key_name_to_index);
 }
 
 

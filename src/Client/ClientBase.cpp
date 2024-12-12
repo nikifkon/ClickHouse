@@ -1014,6 +1014,8 @@ void ClientBase::processTextAsSingleQuery(const String & full_query)
         processError(full_query);
 }
 
+void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_by);
+
 void ClientBase::processOrdinaryQuery(const String & query_to_execute, ASTPtr parsed_query)
 {
     auto query = query_to_execute;
@@ -1108,6 +1110,9 @@ void ClientBase::processOrdinaryQuery(const String & query_to_execute, ASTPtr pa
                         "File {} exists, consider using APPEND or TRUNCATE.",
                         out_file);
                 }
+            }
+            if (query_with_output->partition_by) {
+                throwIfPatternIsNotValid(out_file, query_with_output->partition_by);
             }
         }
     }

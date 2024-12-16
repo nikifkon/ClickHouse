@@ -61,6 +61,7 @@ public:
 
 protected:
     void consume(Chunk chunk) override;
+    void finalizeImpl() override;
 
 private:
     OutputFormatPtr getOrCreateOutputFormat(const Key & key);

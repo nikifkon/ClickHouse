@@ -8,6 +8,7 @@ function perform()
 {
     local test_id=$1
     local query=$2
+    local sort=${3:-1}
 
     echo "performing test: $test_id"
     ${CLICKHOUSE_CLIENT} --query "$query"
@@ -17,7 +18,11 @@ function perform()
         for f in "${CLICKHOUSE_TMP}"/*
         do
             echo "file: $(basename "$f")"
-            sort < "$f"
+            if [ "$sort" -eq 1 ]; then
+                sort < "$f"
+            else
+                cat "$f"
+            fi
         done
     else
         echo "query failed"
@@ -53,6 +58,8 @@ perform "simple_append" "SELECT 42 INTO OUTFILE '${CLICKHOUSE_TMP}/{42}' APPEND 
 
 echo 42 > "${CLICKHOUSE_TMP}/42"
 perform "simple_truncate" "SELECT 42 INTO OUTFILE '${CLICKHOUSE_TMP}/{42}' TRUNCATE PARTITION BY 42;"
+
+perform "simple_format_with_prefix_and_suffix" "SELECT 42 INTO OUTFILE '${CLICKHOUSE_TMP}/{42}'  PARTITION BY 42 FORMAT JSONEachRow SETTINGS output_format_json_array_of_rows = 1" 0
 
 echo "perform file exist test"
 

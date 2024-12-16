@@ -196,7 +196,7 @@ void PartitionOutputFormat::consume(Chunk chunk)
 
     for (const auto & [partition_key, index] : key_to_chunk_index)
     {
-        getOrCreateOutputFormat(partition_key)->consume(std::move(sub_chunks[index]));
+        getOrCreateOutputFormat(partition_key)->write(header.cloneWithColumns(sub_chunks[index].detachColumns()));
     }
 }
 
@@ -221,5 +221,13 @@ PartitionOutputFormat::Key PartitionOutputFormat::copyKeyToArena(const Key & key
         res.push_back(copyStringInArena(partition_keys_arena, part));
     }
     return res;
+}
+
+void PartitionOutputFormat::finalizeImpl()
+{
+    for (auto & [_, output_format] : partition_key_to_output_format)
+    {
+        output_format->finalize();
+    }
 }
 }

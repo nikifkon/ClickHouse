@@ -97,6 +97,11 @@ file: 42
 performing test: simple_truncate
 file: 42
 42
+performing test: simple_format_with_prefix_and_suffix
+file: 42
+[
+{"42":42}
+]
 perform file exist test
 1
 perform wrong template test

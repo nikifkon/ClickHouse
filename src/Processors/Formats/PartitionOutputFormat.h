@@ -27,7 +27,7 @@
 namespace DB
 {
 
-void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_by);
+void throwIfTemplateIsNotValid(const String & out_file_template, const ASTPtr & partition_by);
 
 using OutputFormatPtr = std::shared_ptr<IOutputFormat>;
 
@@ -53,7 +53,7 @@ public:
         const InternalFormatterCreator & internal_formatter_creator_,
         WriteBuffer & fake_buffer,
         const Block & header_,
-        const String & pattern_,
+        const String & out_file_template_,
         const ASTPtr & partition_by,
         const ContextPtr & context);
 
@@ -74,7 +74,7 @@ private:
     std::vector<String> partition_by_expr_names;
 
     Block header;
-    String pattern;
+    String out_file_template;
     InternalFormatterCreator internal_formatter_creator;
 };
 

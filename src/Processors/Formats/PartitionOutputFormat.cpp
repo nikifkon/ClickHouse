@@ -17,28 +17,28 @@ namespace DB {
 
 const std::string PARTITION_ID_WILDCARD = "_partition_id";
 
-String formatPattern(const String & pattern, const PartitionOutputFormat::Key & key, const std::unordered_map<String, int>& key_name_to_index) {
+String formatTemplate(const String & out_file_template, const PartitionOutputFormat::Key & key, const std::unordered_map<String, int>& key_name_to_index) {
     String res;
     std::vector<bool> used(key.size());
-    int n = static_cast<int>(pattern.size());
+    int n = static_cast<int>(out_file_template.size());
 
     for (int i = 0; i < n; ++i) {
-        char x = pattern[i];
+        char x = out_file_template[i];
 
         if (x == '\\' && i + 1 < n) {
-            if (pattern[i + 1] == '{') {
+            if (out_file_template[i + 1] == '{') {
                 ++i;
                 res.push_back('{');
                 continue;
             }
-            if (pattern[i + 1] == '}') {
+            if (out_file_template[i + 1] == '}') {
                 ++i;
                 res.push_back('}');
                 continue;
             }
         }
         if (x == '}') {
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Not escaped '}}' in out_file pattern at pos {}. Escape it using backslash '\'", i);
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Not escaped '}}' in out_file_template at pos {}. Escape it using backslash '\'", i);
         }
         if (x != '{') {
             res.push_back(x);
@@ -48,21 +48,21 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
         std::string name;
         bool found = false;
         for (int j = i + 1; j < n; ++j) {
-            x = pattern[j];
+            x = out_file_template[j];
             if (x == '\\' && j + 1 < n) {
-                if (pattern[j + 1] == '{') {
+                if (out_file_template[j + 1] == '{') {
                     ++j;
                     name.push_back('{');
                     continue;
                 }
-                if (pattern[j + 1] == '}') {
+                if (out_file_template[j + 1] == '}') {
                     ++j;
                     name.push_back('}');
                     continue;
                 }
             }
             if (x == '{') {
-                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Not escaped '{{' inside out_file pattern at pos {}. Escape it using backslash '\'", j);
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Not escaped '{{' inside out_file_template at pos {}. Escape it using backslash '\'", j);
             }
             if (x != '}') {
                 name.push_back(x);
@@ -73,9 +73,9 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
             auto it = key_name_to_index.find(name);
             if (it == key_name_to_index.end()) {
                 if (name != PARTITION_ID_WILDCARD)
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected column name in out_file pattern: {}", name);
+                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected column name in out_file_template: {}", name);
                 if (key.size() != 1)
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected column name in out_file pattern: {}. Can only use {{_partition_id}} with one key", name);
+                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected column name in out_file_template: {}. Can only use {{_partition_id}} with one key", name);
                 key_index = 0;
             } else {
                 key_index = it->second;
@@ -88,7 +88,7 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
             break;
         }
         if (!found) {
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "No matching '}}' for '{{' in out_file pattern at pos {}", i);
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "No matching '}}' for '{{' in out_file_template at pos {}", i);
         }
     }
     if (!std::all_of(begin(used), end(used), std::identity{})) {
@@ -96,7 +96,7 @@ String formatPattern(const String & pattern, const PartitionOutputFormat::Key & 
             | std::views::filter([&](const auto & pair) { return !used[pair.second];})
             | std::views::transform([](const auto & pair) { return pair.first; });
         std::vector<std::string> missed_columns(missed_columns_view.begin(), missed_columns_view.end());
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Missed columns in out_file pattern: {}. Must use all of them", boost::algorithm::join(missed_columns, ", "));
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Missed columns in out_file_template: {}. Must use all of them", boost::algorithm::join(missed_columns, ", "));
     }
     return res;
 }
@@ -112,7 +112,7 @@ const ASTs & getChildernsInPartitionBy(const ASTPtr & expr_list) {
     return func->arguments->children;
 }
 
-void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_by)
+void throwIfTemplateIsNotValid(const String & out_file_template, const ASTPtr & partition_by)
 {
     std::unordered_map<String, int> partition_key_name_to_index;
     PartitionOutputFormat::Key key;
@@ -123,17 +123,17 @@ void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_b
         key.push_back("");
     }
 
-    formatPattern(pattern, key, partition_key_name_to_index);
+    formatTemplate(out_file_template, key, partition_key_name_to_index);
 }
 
 PartitionOutputFormat::PartitionOutputFormat(
     const InternalFormatterCreator & internal_formatter_creator_,
     WriteBuffer & fake_buffer,
     const Block & header_,
-    const String & pattern_,
+    const String & out_file_template_,
     const ASTPtr & partition_by,
     const ContextPtr & context)
-    : IOutputFormat(header_, fake_buffer), header(header_), pattern(pattern_), internal_formatter_creator(internal_formatter_creator_)
+    : IOutputFormat(header_, fake_buffer), header(header_), out_file_template(out_file_template_), internal_formatter_creator(internal_formatter_creator_)
 {
     int i = 0;
     for (const ASTPtr & expr : getChildernsInPartitionBy(partition_by))
@@ -205,7 +205,7 @@ OutputFormatPtr PartitionOutputFormat::getOrCreateOutputFormat(const Key & key)
     auto it = partition_key_to_output_format.find(key);
     if (it == partition_key_to_output_format.end())
     {
-        auto filepath = formatPattern(pattern, key, partition_key_name_to_index);
+        auto filepath = formatTemplate(out_file_template, key, partition_key_name_to_index);
         auto output_format = internal_formatter_creator(filepath);
         std::tie(it, std::ignore) = partition_key_to_output_format.emplace(copyKeyToArena(key), output_format);
     }

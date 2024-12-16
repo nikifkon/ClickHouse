@@ -4891,10 +4891,10 @@ OutputFormatPtr Context::getOutputFormatWithPartition(
     const InternalFormatterCreator & format_creator,
     WriteBuffer & fake_buffer,
     const Block & sample,
-    const String & pattern,
+    const String & out_file_template,
     const ASTPtr & partition_by
 ) const {
-    return FormatFactory::instance().getOutputFormatWithPartition(format_creator, fake_buffer, sample, pattern, partition_by, shared_from_this());
+    return FormatFactory::instance().getOutputFormatWithPartition(format_creator, fake_buffer, sample, out_file_template, partition_by, shared_from_this());
 }
 
 

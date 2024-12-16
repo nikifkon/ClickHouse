@@ -568,11 +568,11 @@ OutputFormatPtr FormatFactory::getOutputFormatWithPartition(
     const InternalFormatterCreator & format_creator,
     WriteBuffer & fake_buffer,
     const Block & sample,
-    const String & pattern,
+    const String & out_file_template,
     const ASTPtr & partition_by,
     const ContextPtr & context
 ) const {
-    return std::make_shared<PartitionOutputFormat>(format_creator, fake_buffer, sample, pattern, partition_by, context);
+    return std::make_shared<PartitionOutputFormat>(format_creator, fake_buffer, sample, out_file_template, partition_by, context);
 }
 
 OutputFormatPtr FormatFactory::getOutputFormat(

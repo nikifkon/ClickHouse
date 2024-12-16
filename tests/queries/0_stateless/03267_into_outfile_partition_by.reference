@@ -86,7 +86,7 @@ file: inside_42
 performing test: escape__heredoc
 file: heredoc_{42}
 42
-performing test: no_existing_check_for_pattern_itself
+performing test: no_precheck_for_tempalte_itself
 file: {42}
 file: 42
 42

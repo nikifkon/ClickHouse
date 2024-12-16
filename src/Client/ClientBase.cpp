@@ -564,13 +564,12 @@ try
 
         using WriteBufferByPath = std::function<std::unique_ptr<WriteBuffer>(const String & buffer_filepath)>;
         WriteBufferByPath outfile_buf_factory;
-        String pattern;
         ASTPtr partition_by;
+        String out_file;
 
         /// The query can specify output format or output file.
         if (const auto * query_with_output = dynamic_cast<const ASTQueryWithOutput *>(parsed_query.get()))
         {
-            String out_file;
             if (query_with_output->out_file)
             {
                 select_into_file = true;
@@ -626,7 +625,6 @@ try
                 if (query_with_output->partition_by) {
                     out_file_buf = std::make_unique<DynamicForkWriteBuffer>();
                     select_into_file_partition_by = true;
-                    pattern = out_file;
                     partition_by = query_with_output->partition_by;
                 } else {
                     out_file_buf = outfile_buf_factory(out_file);
@@ -662,7 +660,7 @@ try
                 // TODO ifs
                 return client_context->getOutputFormat(current_format, write_buffer_ref, block);
             };
-            output_format = client_context->getOutputFormatWithPartition(creator, *out_file_buf, block, pattern, partition_by);
+            output_format = client_context->getOutputFormatWithPartition(creator, *out_file_buf, block, out_file, partition_by);
         } else {
             bool logs_into_stdout = server_logs_file == "-";
             bool extras_into_stdout = need_render_progress || logs_into_stdout;
@@ -1014,7 +1012,7 @@ void ClientBase::processTextAsSingleQuery(const String & full_query)
         processError(full_query);
 }
 
-void throwIfPatternIsNotValid(const String & pattern, const ASTPtr & partition_by);
+void throwIfTemplateIsNotValid(const String & out_file_template, const ASTPtr & partition_by);
 
 void ClientBase::processOrdinaryQuery(const String & query_to_execute, ASTPtr parsed_query)
 {
@@ -1112,7 +1110,7 @@ void ClientBase::processOrdinaryQuery(const String & query_to_execute, ASTPtr pa
                 }
             }
             if (query_with_output->partition_by) {
-                throwIfPatternIsNotValid(out_file, query_with_output->partition_by);
+                throwIfTemplateIsNotValid(out_file, query_with_output->partition_by);
             }
         }
     }

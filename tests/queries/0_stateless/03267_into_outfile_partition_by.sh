@@ -46,7 +46,7 @@ perform "escape__inside" "SELECT 42 as \` {42} \` INTO OUTFILE '${CLICKHOUSE_TMP
 perform "escape__heredoc" "SELECT 42 INTO OUTFILE \$heredoc\$${CLICKHOUSE_TMP}/heredoc_\{{42}\}\$heredoc\$ PARTITION BY 42"
 
 touch "${CLICKHOUSE_TMP}/{42}"
-perform "no_existing_check_for_pattern_itself" "SELECT 42 INTO OUTFILE '${CLICKHOUSE_TMP}/{42}' PARTITION BY 42;"
+perform "no_precheck_for_tempalte_itself" "SELECT 42 INTO OUTFILE '${CLICKHOUSE_TMP}/{42}' PARTITION BY 42;"
 
 echo 42 > "${CLICKHOUSE_TMP}/42"
 perform "simple_append" "SELECT 42 INTO OUTFILE '${CLICKHOUSE_TMP}/{42}' APPEND PARTITION BY 42;"

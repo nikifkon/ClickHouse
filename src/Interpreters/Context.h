@@ -916,7 +916,7 @@ public:
         const InternalFormatterCreator & format_creator,
         WriteBuffer & fake_buffer,
         const Block & sample,
-        const String & pattern,
+        const String & out_file_template,
         const ASTPtr & partition_by
     ) const;
 
